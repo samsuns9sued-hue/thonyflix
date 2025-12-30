@@ -59,12 +59,11 @@ export default function AdminPage() {
           <div>
             <label className="block text-sm mb-1 text-gray-300">Sinopse</label>
             <textarea 
-              name="sinopse" 
-              required 
-              rows={3}
-              className="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:border-yellow-400 outline-none" 
-              placeholder="Resumo do filme..."
-            />
+  name="sinopse" // <-- O 'required' sumiu
+  rows={3}
+  className="..." 
+  placeholder="..."
+/>
           </div>
 
           {/* Link da Capa */}

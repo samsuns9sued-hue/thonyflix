@@ -5,59 +5,64 @@
 import { useRef, useEffect } from 'react';
 import { usePlyr } from 'plyr-react';
 import 'plyr-react/plyr.css';
-
-// Importando os tipos diretamente da biblioteca principal do Plyr
-import Plyr, { PlyrOptions, PlyrSource } from 'plyr';
-
-// Importe a biblioteca H.js para tocar o streaming
 import Hls from 'hls.js';
 
-// As propriedades que nosso componente recebe (src e poster)
+// As opções do player podem ficar fora do componente, pois não mudam.
+const plyrOptions: Plyr.Options = {
+  settings: ['quality', 'speed', 'loop'],
+  speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+  keyboard: { focused: true, global: true },
+  tooltips: { controls: true, seek: true },
+};
+
 interface AdvancedPlayerProps {
-  src: string;
+  src: string; // O link .m3u8
   poster: string;
 }
 
 const AdvancedPlayer = ({ src, poster }: AdvancedPlayerProps) => {
+  // 1. Criamos uma ref para o elemento <video>
   const ref = useRef(null);
 
-  const source: PlyrSource = {
-    type: 'video',
-    sources: [
-      {
-        src: src, // O link .m3u8 do Cloudflare Stream
-        type: 'application/x-mpegURL',
-      },
-    ],
-    poster: poster,
-  };
-
-  const options: PlyrOptions = {
-    settings: ['quality', 'speed', 'loop'],
-    speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
-    keyboard: { focused: true, global: true },
-    tooltips: { controls: true, seek: true },
-  };
-
-  // O 'usePlyr' é o Hook que substitui o componente <Plyr />
-  // Ele anexa o player de vídeo ao elemento referenciado pelo 'ref'
-  const playerInstance = usePlyr(ref, {
-    source: source,
-    options: options,
+  // 2. O hook 'usePlyr' é chamado com a ref e as opções.
+  //    Ele retorna outra ref que nos dará acesso à instância do player.
+  const playerInstanceRef = usePlyr(ref, {
+    options: plyrOptions,
+    source: {
+      type: 'video',
+      poster: poster,
+      // A fonte inicial é vazia, pois o HLS irá carregá-la dinamicamente.
+      sources: [],
+    },
   });
 
-  // Este useEffect garante que o HLS seja carregado corretamente
+  // 3. O useEffect é o coração da solução. Ele gerencia o HLS.
   useEffect(() => {
-    if (playerInstance.current && Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(src);
-      // 'plyr.media' é o elemento <video> real dentro do player
-      hls.attachMedia(playerInstance.current.plyr.media);
-    }
-  }, [playerInstance, src]);
+    let hls: Hls | null = null;
+    
+    // Pegamos o elemento <video> real da nossa ref.
+    const videoElement = ref.current;
 
-  // O componente agora retorna um elemento <video> simples,
-  // e o Hook 'usePlyr' fará a mágica de transformá-lo no player avançado.
+    if (videoElement && Hls.isSupported()) {
+      hls = new Hls();
+      // Carregamos a URL do streaming no HLS.
+      hls.loadSource(src);
+      // Anexamos o HLS ao elemento <video>.
+      hls.attachMedia(videoElement);
+    }
+
+    // 4. Função de limpeza: Isso é MUITO importante.
+    //    Ela é executada quando o componente "morre" ou o 'src' muda.
+    //    Isso previne vazamentos de memória.
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [src]); // Este efeito roda novamente sempre que a URL do vídeo (src) mudar.
+
+  // 5. O componente renderiza um elemento <video> simples.
+  //    O hook 'usePlyr' e o 'useEffect' fazem toda a mágica por trás dos panos.
   return (
     <div className="plyr-container">
       <video ref={ref} className="plyr-react plyr"></video>

@@ -3,33 +3,29 @@ import Player from '@/components/Player';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-export default async function PaginaAssistir({ params }: { params: { id: string } }) {
-  console.log('--- INICIANDO PÁGINA DE ASSISTIR ---');
-  console.log('Parâmetros da URL recebidos:', params);
-
+// A tipagem das props é um pouco mais genérica para aceitar a "Promise"
+export default async function PaginaAssistir({ params: paramsPromise }: { params: any }) {
+  
+  // ✅ A CORREÇÃO MÁGICA ESTÁ AQUI!
+  // Esperamos a "promessa" dos parâmetros ser resolvida.
+  const params = await paramsPromise;
+  
   const id = Number(params.id);
-  console.log('ID convertido para número:', id);
 
   if (isNaN(id)) {
-    console.log('ERRO: ID não é um número. Mostrando 404.');
+    // Se, mesmo depois de esperar, o ID não for um número, mostramos 404.
     return notFound();
   }
 
   try {
-    console.log(`Executando query no banco: SELECT * FROM filmes WHERE id = ${id}`);
-    
-    // Usando uma query mais robusta para evitar problemas de tipo
-    const { rows } = await pool.query('SELECT * FROM filmes WHERE id = $1::integer', [id]);
+    const { rows } = await pool.query('SELECT * FROM filmes WHERE id = $1', [id]);
     const filme = rows[0];
 
-    console.log('Resultado da busca no banco:', filme || 'Nenhum filme encontrado.');
-
     if (!filme) {
-      console.log('ERRO: Nenhum filme encontrado com este ID. Mostrando 404.');
       return notFound();
     }
 
-    console.log('Filme encontrado! Renderizando a página...');
+    // Se tudo deu certo, mostramos a página
     return (
       <div className="bg-black min-h-screen text-white flex flex-col">
         <div className="absolute top-4 left-4 z-10">
@@ -51,8 +47,7 @@ export default async function PaginaAssistir({ params }: { params: { id: string 
     );
 
   } catch (error) {
-    console.error('--- ERRO CRÍTICO NA CONEXÃO COM O BANCO ---', error);
-    // Em caso de erro de conexão, também mostramos 404 para não expor detalhes
+    console.error('Erro ao buscar filme no banco:', error);
     return notFound();
   }
 }

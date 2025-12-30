@@ -1,4 +1,4 @@
-import pool from '@/src/lib/db';
+import pool from '@/lib/db';
 import Player from '@/components/Player'; // Certifique-se que seu Player.tsx está na pasta components
 import Link from 'next/link';
 import { notFound } from 'next/navigation';

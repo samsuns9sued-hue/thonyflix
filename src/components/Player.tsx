@@ -203,10 +203,8 @@ export default function Player({
     }
   };
 
-  // Mouse movement handler
-  const handleMouseMove = () => {
-    setShowControls(true);
-
+  // Função para resetar o timer de esconder controles
+  const resetHideControlsTimer = useCallback(() => {
     if (hideControlsTimeout.current) {
       clearTimeout(hideControlsTimeout.current);
     }
@@ -216,6 +214,12 @@ export default function Player({
         setShowControls(false);
       }, 3000);
     }
+  }, [isPlaying]);
+
+  // Mouse movement handler
+  const handleMouseMove = () => {
+    setShowControls(true);
+    resetHideControlsTimer();
   };
 
   const handleMouseLeave = () => {
@@ -226,9 +230,43 @@ export default function Player({
     }
   };
 
+  // Touch handler para mobile e TV
+  const handleTouchStart = () => {
+    setShowControls(true);
+    resetHideControlsTimer();
+  };
+
+  // Handler para clique no vídeo (funciona para touch e mouse)
+  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    // Se os controles não estão visíveis, apenas mostra eles
+    if (!showControls) {
+      setShowControls(true);
+      resetHideControlsTimer();
+      return;
+    }
+
+    // Se os controles já estão visíveis, faz play/pause
+    togglePlay();
+  };
+
+  // Handler para clique no container (área fora do vídeo em alguns casos)
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Verifica se o clique foi diretamente no container (não em um filho)
+    if (e.target === e.currentTarget) {
+      if (!showControls) {
+        setShowControls(true);
+        resetHideControlsTimer();
+      }
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Mostra controles ao pressionar qualquer tecla
+      setShowControls(true);
+      resetHideControlsTimer();
+
       switch (e.key.toLowerCase()) {
         case " ":
         case "k":
@@ -274,7 +312,7 @@ export default function Player({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [togglePlay, volume]);
+  }, [togglePlay, volume, resetHideControlsTimer]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -295,12 +333,21 @@ export default function Player({
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // Labels dinâmicos para acessibilidade
+  const playPauseLabel = isPlaying ? "Pausar vídeo" : "Reproduzir vídeo";
+  const muteLabel = isMuted || volume === 0 ? "Ativar som" : "Silenciar";
+  const fullscreenLabel = isFullscreen ? "Sair da tela cheia" : "Tela cheia";
+
   return (
     <div
       ref={containerRef}
       className="relative w-full h-screen bg-black group overflow-hidden"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onClick={handleContainerClick}
+      role="region"
+      aria-label={`Player de vídeo: ${title}`}
     >
       {/* Video Element */}
       <video
@@ -309,7 +356,7 @@ export default function Player({
         poster={poster}
         preload="metadata"
         autoPlay={autoPlay}
-        onClick={togglePlay}
+        onClick={handleVideoClick}
         onDoubleClick={toggleFullscreen}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
@@ -318,6 +365,7 @@ export default function Player({
         onCanPlay={handleCanPlay}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        aria-label={`Vídeo: ${title}`}
       >
         <source src={src} type="video/mp4" />
         Seu navegador não suporta este vídeo.
@@ -325,8 +373,13 @@ export default function Player({
 
       {/* Loading Spinner */}
       {isLoading && hasStarted && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-20">
-          <Loader2 className="w-16 h-16 text-red-600 animate-spin" />
+        <div 
+          className="absolute inset-0 flex items-center justify-center bg-black/30 z-20"
+          role="status"
+          aria-label="Carregando vídeo"
+        >
+          <Loader2 className="w-16 h-16 text-red-600 animate-spin" aria-hidden="true" />
+          <span className="sr-only">Carregando vídeo...</span>
         </div>
       )}
 
@@ -335,9 +388,18 @@ export default function Player({
         <div
           className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 cursor-pointer"
           onClick={togglePlay}
+          role="button"
+          aria-label="Iniciar reprodução do vídeo"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              togglePlay();
+            }
+          }}
         >
           <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-white/30 border border-white/30">
-            <Play className="w-12 h-12 text-white ml-1" fill="white" />
+            <Play className="w-12 h-12 text-white ml-1" fill="white" aria-hidden="true" />
           </div>
         </div>
       )}
@@ -347,6 +409,7 @@ export default function Player({
         className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${
           showControls ? "opacity-100" : "opacity-0"
         }`}
+        aria-hidden="true"
       >
         {/* Top gradient */}
         <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/80 via-black/40 to-transparent" />
@@ -361,13 +424,16 @@ export default function Player({
             ? "opacity-100 translate-y-0"
             : "opacity-0 -translate-y-4"
         }`}
+        aria-hidden={!showControls}
       >
         {onBack && (
           <button
             onClick={onBack}
             className="p-2 rounded-full hover:bg-white/10 transition-colors"
+            aria-label="Voltar para a página anterior"
+            tabIndex={showControls ? 0 : -1}
           >
-            <ChevronLeft className="w-8 h-8 text-white" />
+            <ChevronLeft className="w-8 h-8 text-white" aria-hidden="true" />
           </button>
         )}
         <div className="flex-1">
@@ -380,7 +446,10 @@ export default function Player({
 
       {/* Center Play/Pause Animation */}
       {hasStarted && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div 
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          aria-hidden="true"
+        >
           <div
             className={`transform transition-all duration-300 ${
               !isPlaying && showControls ? "scale-100 opacity-100" : "scale-75 opacity-0"
@@ -400,6 +469,9 @@ export default function Player({
             ? "opacity-100 translate-y-0"
             : "opacity-0 translate-y-4"
         }`}
+        role="toolbar"
+        aria-label="Controles do player"
+        aria-hidden={!showControls}
       >
         {/* Progress Bar */}
         <div
@@ -408,6 +480,22 @@ export default function Player({
           onClick={handleProgressClick}
           onMouseMove={handleProgressHover}
           onMouseLeave={handleProgressLeave}
+          role="slider"
+          aria-label="Progresso do vídeo"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+          aria-valuetext={`${formatTime(currentTime)} de ${formatTime(duration)}`}
+          tabIndex={showControls ? 0 : -1}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              skip(-10);
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              skip(10);
+            }
+          }}
         >
           {/* Background */}
           <div className="absolute inset-0 bg-white/30 rounded-full" />
@@ -432,6 +520,7 @@ export default function Player({
             <div
               className="absolute -top-10 transform -translate-x-1/2 bg-black/90 text-white text-sm px-2 py-1 rounded pointer-events-none"
               style={{ left: hoverPosition }}
+              aria-hidden="true"
             >
               {formatTime(hoverTime)}
             </div>
@@ -445,11 +534,13 @@ export default function Player({
             <button
               onClick={togglePlay}
               className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95"
+              aria-label={playPauseLabel}
+              tabIndex={showControls ? 0 : -1}
             >
               {isPlaying ? (
-                <Pause className="w-7 h-7 text-white" />
+                <Pause className="w-7 h-7 text-white" aria-hidden="true" />
               ) : (
-                <Play className="w-7 h-7 text-white" fill="white" />
+                <Play className="w-7 h-7 text-white" fill="white" aria-hidden="true" />
               )}
             </button>
 
@@ -457,10 +548,15 @@ export default function Player({
             <button
               onClick={() => skip(-10)}
               className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95 hidden sm:block"
+              aria-label="Retroceder 10 segundos"
+              tabIndex={showControls ? 0 : -1}
             >
               <div className="relative">
-                <RotateCcw className="w-6 h-6 text-white" />
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mt-0.5">
+                <RotateCcw className="w-6 h-6 text-white" aria-hidden="true" />
+                <span 
+                  className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                  aria-hidden="true"
+                >
                   10
                 </span>
               </div>
@@ -470,10 +566,15 @@ export default function Player({
             <button
               onClick={() => skip(10)}
               className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95 hidden sm:block"
+              aria-label="Avançar 10 segundos"
+              tabIndex={showControls ? 0 : -1}
             >
               <div className="relative">
-                <RotateCcw className="w-6 h-6 text-white scale-x-[-1]" />
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mt-0.5">
+                <RotateCcw className="w-6 h-6 text-white scale-x-[-1]" aria-hidden="true" />
+                <span 
+                  className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                  aria-hidden="true"
+                >
                   10
                 </span>
               </div>
@@ -488,8 +589,10 @@ export default function Player({
               <button
                 onClick={toggleMute}
                 className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95"
+                aria-label={muteLabel}
+                tabIndex={showControls ? 0 : -1}
               >
-                <VolumeIcon className="w-6 h-6 text-white" />
+                <VolumeIcon className="w-6 h-6 text-white" aria-hidden="true" />
               </button>
 
               {/* Volume Slider */}
@@ -505,6 +608,8 @@ export default function Player({
                   step="0.01"
                   value={volume}
                   onChange={handleVolumeChange}
+                  aria-label={`Volume: ${Math.round(volume * 100)}%`}
+                  tabIndex={showControls && showVolumeSlider ? 0 : -1}
                   className="w-full h-1 bg-white/30 rounded-full appearance-none cursor-pointer
                     [&::-webkit-slider-thumb]:appearance-none
                     [&::-webkit-slider-thumb]:w-3
@@ -522,10 +627,14 @@ export default function Player({
             </div>
 
             {/* Time Display */}
-            <div className="text-white text-sm ml-2 font-medium tabular-nums">
-              <span>{formatTime(currentTime)}</span>
-              <span className="text-white/50 mx-1">/</span>
-              <span className="text-white/70">{formatTime(duration)}</span>
+            <div 
+              className="text-white text-sm ml-2 font-medium tabular-nums"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span aria-label={`Tempo atual: ${formatTime(currentTime)}`}>{formatTime(currentTime)}</span>
+              <span className="text-white/50 mx-1" aria-hidden="true">/</span>
+              <span className="text-white/70" aria-label={`Duração total: ${formatTime(duration)}`}>{formatTime(duration)}</span>
             </div>
           </div>
 
@@ -535,6 +644,8 @@ export default function Player({
               <button
                 onClick={() => skip(25)}
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded transition-all border border-white/40 mr-4"
+                aria-label="Pular introdução, avançar 25 segundos"
+                tabIndex={showControls ? 0 : -1}
               >
                 Pular Intro
               </button>
@@ -548,23 +659,38 @@ export default function Player({
                   setShowSpeedMenu(false);
                 }}
                 className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95"
+                aria-label={`Configurações, velocidade atual: ${playbackSpeed}x`}
+                aria-expanded={showSettings}
+                aria-haspopup="menu"
+                tabIndex={showControls ? 0 : -1}
               >
-                <Settings className="w-6 h-6 text-white" />
+                <Settings className="w-6 h-6 text-white" aria-hidden="true" />
               </button>
 
               {/* Settings Menu */}
               {showSettings && (
-                <div className="absolute bottom-full right-0 mb-2 bg-black/95 rounded-lg overflow-hidden shadow-2xl border border-white/10 min-w-[200px]">
+                <div 
+                  className="absolute bottom-full right-0 mb-2 bg-black/95 rounded-lg overflow-hidden shadow-2xl border border-white/10 min-w-[200px]"
+                  role="menu"
+                  aria-label="Menu de configurações"
+                >
                   <button
                     onClick={() => setShowSpeedMenu(!showSpeedMenu)}
                     className="w-full px-4 py-3 text-white text-sm hover:bg-white/10 flex items-center justify-between transition-colors"
+                    role="menuitem"
+                    aria-expanded={showSpeedMenu}
+                    aria-haspopup="menu"
                   >
                     <span>Velocidade</span>
                     <span className="text-white/60">{playbackSpeed}x</span>
                   </button>
 
                   {showSpeedMenu && (
-                    <div className="border-t border-white/10">
+                    <div 
+                      className="border-t border-white/10"
+                      role="menu"
+                      aria-label="Opções de velocidade de reprodução"
+                    >
                       {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
                         <button
                           key={speed}
@@ -574,10 +700,13 @@ export default function Player({
                               ? "text-red-500"
                               : "text-white"
                           }`}
+                          role="menuitemradio"
+                          aria-checked={playbackSpeed === speed}
+                          aria-label={speed === 1 ? "Velocidade normal" : `Velocidade ${speed}x`}
                         >
                           <span>{speed === 1 ? "Normal" : `${speed}x`}</span>
                           {playbackSpeed === speed && (
-                            <div className="w-2 h-2 bg-red-500 rounded-full" />
+                            <div className="w-2 h-2 bg-red-500 rounded-full" aria-hidden="true" />
                           )}
                         </button>
                       ))}
@@ -588,27 +717,35 @@ export default function Player({
             </div>
 
             {/* Subtitles */}
-            <button className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95 hidden sm:block">
-              <Subtitles className="w-6 h-6 text-white" />
+            <button 
+              className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95 hidden sm:block"
+              aria-label="Legendas e áudio"
+              tabIndex={showControls ? 0 : -1}
+            >
+              <Subtitles className="w-6 h-6 text-white" aria-hidden="true" />
             </button>
 
             {/* Picture in Picture */}
             <button
               onClick={togglePictureInPicture}
               className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95 hidden sm:block"
+              aria-label="Picture in Picture - assistir em janela flutuante"
+              tabIndex={showControls ? 0 : -1}
             >
-              <PictureInPicture2 className="w-6 h-6 text-white" />
+              <PictureInPicture2 className="w-6 h-6 text-white" aria-hidden="true" />
             </button>
 
             {/* Fullscreen */}
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-md hover:bg-white/10 transition-all active:scale-95"
+              aria-label={fullscreenLabel}
+              tabIndex={showControls ? 0 : -1}
             >
               {isFullscreen ? (
-                <Minimize className="w-6 h-6 text-white" />
+                <Minimize className="w-6 h-6 text-white" aria-hidden="true" />
               ) : (
-                <Maximize className="w-6 h-6 text-white" />
+                <Maximize className="w-6 h-6 text-white" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -621,8 +758,11 @@ export default function Player({
         className={`absolute left-8 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-all ${
           showControls ? "opacity-100" : "opacity-0"
         } hidden md:block`}
+        aria-label="Retroceder 10 segundos"
+        tabIndex={showControls ? 0 : -1}
+        aria-hidden={!showControls}
       >
-        <SkipBack className="w-8 h-8 text-white" />
+        <SkipBack className="w-8 h-8 text-white" aria-hidden="true" />
       </button>
 
       <button
@@ -630,8 +770,11 @@ export default function Player({
         className={`absolute right-8 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-all ${
           showControls ? "opacity-100" : "opacity-0"
         } hidden md:block`}
+        aria-label="Avançar 10 segundos"
+        tabIndex={showControls ? 0 : -1}
+        aria-hidden={!showControls}
       >
-        <SkipForward className="w-8 h-8 text-white" />
+        <SkipForward className="w-8 h-8 text-white" aria-hidden="true" />
       </button>
     </div>
   );

@@ -1,11 +1,17 @@
 import pool from '@/lib/db';
-import Player from '@/components/Player'; // Certifique-se que seu Player.tsx está na pasta components
+import Player from '@/components/Player'; 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 export default async function PaginaAssistir({ params }: { params: { id: string } }) {
-  // O Next.js já nos dá o ID pela URL
-  const { id } = params;
+  // ✅ CORREÇÃO APLICADA AQUI!
+  // Converte o ID da URL (que é texto) para um número antes de usar.
+  const id = Number(params.id);
+
+  // Se o ID não for um número válido (ex: /assistir/abc), mostra 404
+  if (isNaN(id)) {
+    return notFound();
+  }
 
   // Busca apenas o filme com esse ID
   const { rows } = await pool.query('SELECT * FROM filmes WHERE id = $1', [id]);
@@ -36,7 +42,7 @@ export default async function PaginaAssistir({ params }: { params: { id: string 
       {/* Título e Sinopse abaixo do vídeo */}
       <div className="p-6 max-w-4xl mx-auto w-full">
         <h1 className="text-2xl font-bold mb-2">{filme.titulo}</h1>
-        <p className="text-gray-400">{filme.sinopse}</p>
+        <p className="text-gray-400">{filme.sinopse || 'Sem sinopse disponível.'}</p>
       </div>
     </div>
   );

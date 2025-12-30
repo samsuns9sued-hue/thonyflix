@@ -1,51 +1,51 @@
 // src/app/assistir/[id]/page.tsx
 
 import pool from '@/lib/db';
-// ✅ Voltamos a importar o seu Player simples!
-import Player from '@/components/Player'; 
-import Link from 'next/link';
+import Player from '@/components/Player'; // Seu player customizado
 import { notFound } from 'next/navigation';
+
+// Função para buscar o episódio E os dados da série a que ele pertence
+async function getEpisodeData(episodeId: number) {
+  const { rows } = await pool.query(`
+    SELECT 
+      e.video_url, 
+      e.season_number,
+      e.episode_number,
+      s.title AS series_title, -- Pega o título da tabela 'series'
+      s.cover_url AS series_cover -- Pega a capa da tabela 'series'
+    FROM episodes e
+    JOIN series s ON e.series_id = s.id -- Junta as duas tabelas
+    WHERE e.id = $1; -- Filtra pelo ID do episódio
+  `, [episodeId]);
+
+  if (rows.length === 0) return null;
+  return rows[0];
+}
+
 
 export default async function PaginaAssistir({ params: paramsPromise }: { params: any }) {
   const params = await paramsPromise;
-  const id = Number(params.id);
+  const episodeId = Number(params.id);
 
-  if (isNaN(id)) {
+  if (isNaN(episodeId)) {
     return notFound();
   }
 
-  try {
-    const { rows } = await pool.query('SELECT * FROM filmes WHERE id = $1', [id]);
-    const filme = rows[0];
+  const episodeData = await getEpisodeData(episodeId);
 
-    if (!filme) {
-      return notFound();
-    }
-
-    // ✅ Voltamos para a estrutura original da página
-    return (
-      <div className="bg-black min-h-screen text-white flex flex-col">
-        <div className="absolute top-4 left-4 z-10">
-          <Link 
-            href="/" 
-            className="bg-gray-800 px-4 py-2 rounded text-white hover:bg-gray-700 focus:bg-yellow-500 focus:text-black outline-none font-bold"
-          >
-            ← Voltar
-          </Link>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          {/* ✅ Usando o seu componente <Player /> novamente */}
-          <Player src={filme.video_url} poster={filme.capa_url} />
-        </div>
-        <div className="p-6 max-w-4xl mx-auto w-full">
-          <h1 className="text-2xl font-bold mb-2">{filme.titulo}</h1>
-          <p className="text-gray-400">{filme.sinopse || 'Sem sinopse disponível.'}</p>
-        </div>
-      </div>
-    );
-
-  } catch (error) {
-    console.error('Erro ao buscar filme no banco:', error);
+  if (!episodeData) {
     return notFound();
   }
+
+  // Agora usamos os novos nomes que definimos na query
+  // Ex: series_title em vez de titulo
+  return (
+    <Player 
+      src={episodeData.video_url} 
+      poster={episodeData.series_cover}
+      title={episodeData.series_title}
+      subtitle={`Temporada ${episodeData.season_number}: Episódio ${episodeData.episode_number}`}
+      // A função de voltar (onBack) pode ser um link para a página da série no futuro
+    />
+  );
 }

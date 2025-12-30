@@ -1,125 +1,115 @@
 // src/app/admin/page.tsx
-import pool from '@/lib/db';
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { searchSeries, addItem } from './actions';
+
+type Series = { id: number; title: string };
 
 export default function AdminPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [results, setResults] = useState<Series[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Esta função roda EXCLUSIVAMENTE no servidor (Server Action)
-  async function criarFilme(formData: FormData) {
-    'use server'
-
-    // 1. Pegar os dados do formulário
-    const senha = formData.get('senha') as string;
-    const titulo = formData.get('titulo') as string;
-    const sinopse = formData.get('sinopse') as string;
-    const capa_url = formData.get('capa_url') as string;
-    const video_url = formData.get('video_url') as string;
-    const categoria = formData.get('categoria') as string;
-
-    // 2. Verificar segurança
-    if (senha !== process.env.ADMIN_PASSWORD) {
-      // Se quiser ser mais chique, poderia retornar erro, mas aqui vamos redirecionar
-      throw new Error('Senha incorreta!');
+  useEffect(() => {
+    if (searchTerm.length < 3) {
+      setResults([]);
+      return;
     }
-
-    // 3. Inserir no Banco de Dados
-    await pool.query(
-      `INSERT INTO filmes (titulo, sinopse, capa_url, video_url, categoria) 
-       VALUES ($1, $2, $3, $4, $5)`,
-      [titulo, sinopse, capa_url, video_url, categoria]
-    );
-
-    // 4. Atualizar a Home para o filme aparecer na hora e limpar cache
-    revalidatePath('/');
     
-    // 5. Redirecionar para a Home
-    redirect('/');
-  }
+    const handler = setTimeout(() => {
+      searchSeries(searchTerm).then(setResults);
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const handleSelectSeries = (series: Series) => {
+    setSelectedSeries(series);
+    setSearchTerm(series.title);
+    setResults([]);
+  };
+  
+  const handleFormSubmit = async (formData: FormData) => {
+    setIsSubmitting(true);
+    try {
+      await addItem(formData);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Ocorreu um erro.');
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-lg border border-gray-700">
-        <h1 className="text-2xl font-bold mb-6 text-yellow-400 text-center">Adicionar Novo Filme</h1>
+    <div className="min-h-screen bg-gray-900 text-white flex justify-center p-4">
+      <form action={handleFormSubmit} className="bg-gray-800 p-8 rounded-lg w-full max-w-lg space-y-4">
+        <h1 className="text-2xl font-bold text-center text-yellow-400">Adicionar Item</h1>
+
+        {/* Campo de Busca */}
+        <div className="relative">
+          <label className="block text-sm mb-1">Buscar Série Existente (ou digite um novo título)</label>
+          <input
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setSelectedSeries(null);
+            }}
+            className="w-full p-2 rounded bg-gray-700 border border-gray-600"
+            placeholder="Digite 'Stran' para buscar..."
+          />
+          {results.length > 0 && (
+            <ul className="absolute z-10 w-full bg-gray-600 rounded-b-lg border border-t-0 border-gray-500">
+              {results.map((series) => (
+                <li key={series.id} onClick={() => handleSelectSeries(series)} className="px-4 py-2 hover:bg-yellow-500 hover:text-black cursor-pointer">
+                  {series.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         
-        <form action={criarFilme} className="space-y-4">
-          
-          {/* Título */}
+        {/* Campos para NOVA série (condicional) */}
+        {!selectedSeries && (
+          <>
+            <input name="title" value={searchTerm} type="hidden" /> {/* Passa o título novo */}
+            <div>
+              <label>Sinopse da Nova Série</label>
+              <textarea name="sinopsis" required className="w-full p-2 rounded bg-gray-700" />
+            </div>
+            <div>
+              <label>URL da Capa da Nova Série</label>
+              <input name="cover_url" type="url" required className="w-full p-2 rounded bg-gray-700" />
+            </div>
+          </>
+        )}
+
+        {/* Campos do EPISÓDIO (sempre visíveis) */}
+        {selectedSeries && <input type="hidden" name="series_id" value={selectedSeries.id} />}
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm mb-1 text-gray-300">Título do Filme</label>
-            <input 
-              name="titulo" 
-              required 
-              className="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:border-yellow-400 outline-none" 
-              placeholder="Ex: Matrix"
-            />
+            <label>Nº da Temporada</label>
+            <input name="season_number" type="number" required className="w-full p-2 rounded bg-gray-700" />
           </div>
-
-          {/* Sinopse */}
           <div>
-            <label className="block text-sm mb-1 text-gray-300">Sinopse</label>
-            <textarea 
-  name="sinopse" // <-- O 'required' sumiu
-  rows={3}
-  className="..." 
-  placeholder="..."
-/>
+            <label>Nº do Episódio</label>
+            <input name="episode_number" type="number" required className="w-full p-2 rounded bg-gray-700" />
           </div>
+        </div>
+        <div>
+          <label>URL do Vídeo (.mp4)</label>
+          <input name="video_url" type="url" required className="w-full p-2 rounded bg-gray-700" />
+        </div>
 
-          {/* Link da Capa */}
-          <div>
-            <label className="block text-sm mb-1 text-gray-300">URL da Capa (Imagem)</label>
-            <input 
-              name="capa_url" 
-              type="url"
-              required 
-              className="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:border-yellow-400 outline-none" 
-              placeholder="https://..."
-            />
-          </div>
-
-          {/* Link do Vídeo (O arquivo .mp4) */}
-          <div>
-            <label className="block text-sm mb-1 text-gray-300">URL do Vídeo (.mp4)</label>
-            <input 
-              name="video_url" 
-              type="url"
-              required 
-              className="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:border-yellow-400 outline-none" 
-              placeholder="https://meu-bucket.r2.dev/filme.mp4"
-            />
-          </div>
-
-          {/* Categoria (Opcional) */}
-          <div>
-            <label className="block text-sm mb-1 text-gray-300">Categoria</label>
-            <input 
-              name="categoria" 
-              className="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:border-yellow-400 outline-none" 
-              placeholder="Ação, Drama..."
-            />
-          </div>
-
-          {/* Senha de Admin (Segurança) */}
-          <div className="pt-4 border-t border-gray-700">
-            <label className="block text-sm mb-1 text-yellow-400 font-bold">Senha de Administrador</label>
-            <input 
-              name="senha" 
-              type="password"
-              required 
-              className="w-full p-2 rounded bg-gray-700 border border-red-500 focus:border-red-400 outline-none" 
-              placeholder="Sua senha definida no .env"
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded transition-colors mt-4"
-          >
-            Salvar Filme
-          </button>
-        </form>
-      </div>
+        {/* Senha e Botão */}
+        <div className="pt-4 border-t border-gray-700">
+          <label className="font-bold text-yellow-400">Senha de Admin</label>
+          <input name="password" type="password" required className="w-full p-2 rounded bg-gray-700 border-red-500" />
+        </div>
+        <button type="submit" disabled={isSubmitting} className="w-full bg-yellow-500 text-black font-bold py-3 rounded disabled:bg-gray-500">
+          {isSubmitting ? 'Salvando...' : 'Salvar Item'}
+        </button>
+      </form>
     </div>
   );
 }

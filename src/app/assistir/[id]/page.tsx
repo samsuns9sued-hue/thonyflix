@@ -1,19 +1,18 @@
+// src/app/assistir/[id]/page.tsx
+
 import pool from '@/lib/db';
-import Player from '@/components/Player'; 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+// Importe APENAS o player novo
+import AdvancedPlayer from '@/components/AdvancedPlayer';
 
-// A tipagem das props é um pouco mais genérica para aceitar a "Promise"
 export default async function PaginaAssistir({ params: paramsPromise }: { params: any }) {
-  
-  // ✅ A CORREÇÃO MÁGICA ESTÁ AQUI!
-  // Esperamos a "promessa" dos parâmetros ser resolvida.
+  // --- NADA MUDA AQUI ---
+  // A lógica para buscar o filme continua exatamente a mesma.
   const params = await paramsPromise;
-  
   const id = Number(params.id);
 
   if (isNaN(id)) {
-    // Se, mesmo depois de esperar, o ID não for um número, mostramos 404.
     return notFound();
   }
 
@@ -24,24 +23,31 @@ export default async function PaginaAssistir({ params: paramsPromise }: { params
     if (!filme) {
       return notFound();
     }
+    // --- FIM DA LÓGICA DO BANCO ---
 
-    // Se tudo deu certo, mostramos a página
+
+    // ✅ MUDANÇA PRINCIPAL: A ESTRUTURA DA PÁGINA
+    // Agora o layout é focado 100% no player.
     return (
-      <div className="bg-black min-h-screen text-white flex flex-col">
-        <div className="absolute top-4 left-4 z-10">
-          <Link 
-            href="/" 
-            className="bg-gray-800 px-4 py-2 rounded text-white hover:bg-gray-700 focus:bg-yellow-500 focus:text-black outline-none font-bold"
-          >
-            ← Voltar
-          </Link>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <Player src={filme.video_url} poster={filme.capa_url} />
-        </div>
-        <div className="p-6 max-w-4xl mx-auto w-full">
-          <h1 className="text-2xl font-bold mb-2">{filme.titulo}</h1>
-          <p className="text-gray-400">{filme.sinopse || 'Sem sinopse disponível.'}</p>
+      <div className="w-screen h-screen bg-black">
+        {/* Botão de Voltar para a Home */}
+        <Link 
+          href="/" 
+          className="absolute top-5 left-5 z-20 text-white bg-black bg-opacity-50 hover:bg-opacity-75 p-2 rounded-full transition-all"
+          aria-label="Voltar para a home"
+        >
+          {/* Ícone de seta (SVG) */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        
+        {/* O Player Avançado ocupando todo o espaço */}
+        <div className="w-full h-full">
+          <AdvancedPlayer 
+            src={filme.video_url} // Aqui vai o link .m3u8 do Cloudflare Stream
+            poster={filme.capa_url} 
+          />
         </div>
       </div>
     );

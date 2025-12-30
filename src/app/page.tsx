@@ -15,7 +15,8 @@ export default async function Home() {
   
   // 1. Conecta no banco e pede todos os filmes
   // Se não tiver filmes cadastrados, a lista virá vazia
-  const { rows: filmes } = await pool.query<Filme>('SELECT * FROM filmes ORDER BY criado_em DESC');
+  const resultado = await pool.query<Filme>('SELECT * FROM filmes ORDER BY criado_em DESC');
+const filmes = resultado?.rows || []; // Se resultado ou rows for nulo, usa um array vazio []
 
   return (
     <main className="p-10 bg-gray-900 min-h-screen text-white">

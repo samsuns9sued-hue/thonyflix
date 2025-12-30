@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import pool from '@/src/lib/db'; // Importa nossa conexão
+import pool from '@/lib/db'; // Importa nossa conexão
 
 // Define o tipo dos dados para o TypeScript não reclamar
 type Filme = {

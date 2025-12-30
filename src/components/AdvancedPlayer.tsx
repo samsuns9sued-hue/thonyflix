@@ -1,19 +1,27 @@
 // src/components/AdvancedPlayer.tsx
 
-// 'use client' é obrigatório para componentes com interatividade
 'use client';
 
-import Plyr, { PlyrProps, APITypes } from 'plyr-react';
+import { useRef, useEffect } from 'react';
+import { usePlyr } from 'plyr-react';
 import 'plyr-react/plyr.css';
-import { useRef } from 'react';
+
+// Importando os tipos diretamente da biblioteca principal do Plyr
+import Plyr, { PlyrOptions, PlyrSource } from 'plyr';
 
 // Importe a biblioteca H.js para tocar o streaming
 import Hls from 'hls.js';
 
-export default function AdvancedPlayer({ src, poster }: { src: string, poster: string }) {
-  const ref = useRef<APITypes>(null);
+// As propriedades que nosso componente recebe (src e poster)
+interface AdvancedPlayerProps {
+  src: string;
+  poster: string;
+}
 
-  const source: PlyrProps['source'] = {
+const AdvancedPlayer = ({ src, poster }: AdvancedPlayerProps) => {
+  const ref = useRef(null);
+
+  const source: PlyrSource = {
     type: 'video',
     sources: [
       {
@@ -24,29 +32,37 @@ export default function AdvancedPlayer({ src, poster }: { src: string, poster: s
     poster: poster,
   };
 
-  const options: PlyrProps['options'] = {
-    // Configurações do menu
+  const options: PlyrOptions = {
     settings: ['quality', 'speed', 'loop'],
-    // Opções de velocidade
     speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
-    // Teclas de atalho (setas para pular, 'f' para tela cheia, etc.)
-    keyboard: { focused: true, global: false },
+    keyboard: { focused: true, global: true },
     tooltips: { controls: true, seek: true },
   };
 
-  // Lógica para carregar o HLS
-  if (Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(src);
-    // @ts-ignore
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      const plyrInstance = ref.current?.plyr;
-      if (plyrInstance) {
-        // @ts-ignore
-        hls.attachMedia(plyrInstance.media);
-      }
-    });
-  }
+  // O 'usePlyr' é o Hook que substitui o componente <Plyr />
+  // Ele anexa o player de vídeo ao elemento referenciado pelo 'ref'
+  const playerInstance = usePlyr(ref, {
+    source: source,
+    options: options,
+  });
 
-  return <Plyr ref={ref} source={source} options={options} />;
-}
+  // Este useEffect garante que o HLS seja carregado corretamente
+  useEffect(() => {
+    if (playerInstance.current && Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(src);
+      // 'plyr.media' é o elemento <video> real dentro do player
+      hls.attachMedia(playerInstance.current.plyr.media);
+    }
+  }, [playerInstance, src]);
+
+  // O componente agora retorna um elemento <video> simples,
+  // e o Hook 'usePlyr' fará a mágica de transformá-lo no player avançado.
+  return (
+    <div className="plyr-container">
+      <video ref={ref} className="plyr-react plyr"></video>
+    </div>
+  );
+};
+
+export default AdvancedPlayer;
